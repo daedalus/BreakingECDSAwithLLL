@@ -15,7 +15,7 @@ First install dependencies:
   sudo apt-get install sagemath python3-ecdsa
   ```
 
-To run:
+Then run:
   ```
   # This will generate 6 weak signatures with a known key, args:(privkey,bits,nonces)
   python3 weak_signature_generator.py e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 176 6 > nonces.csv
