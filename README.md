@@ -1,7 +1,7 @@
 # BreakingECDSAwithLLL
 Breaking ECDSA (not so broken) with LLL
 
-Based on preious work
+Based on previous work
   ```
 https://blog.trailofbits.com/2020/06/11/ecdsa-handle-with-care/
 https://www.youtube.com/watch?v=6ssTlSSIJQE
