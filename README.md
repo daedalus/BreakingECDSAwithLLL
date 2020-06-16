@@ -1,6 +1,9 @@
 # BreakingECDSAwithLLL
 Breaking ECDSA (not so broken) with LLL
 
+The main idea behing this attack is the theorem of the great numbers, if you have a crypto funcion and lots of samples generated with that key, then they will tend to converge to a single poin which happens to be the private key, this is equal to solving the hidden number problem.
+And for solving it we employ Lorenz lenstra lovaz lattice reduction.
+
 Based on previous work
   ```
 https://blog.trailofbits.com/2020/06/11/ecdsa-handle-with-care/
