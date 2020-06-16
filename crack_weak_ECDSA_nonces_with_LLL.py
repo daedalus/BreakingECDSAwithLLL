@@ -11,8 +11,7 @@ import random
 from sage.all_cmdline import *   
 
 order = int(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141)
-#order = 4
-#order = int(order)
+filename=sys.argv[1]
 B = int(sys.argv[2])
 limit = int(sys.argv[3])
 
@@ -37,15 +36,11 @@ def load_csv(filename):
       n+=1
   return msgs,sigs,pubs
 
-msgs,sigs,pubs = load_csv(sys.argv[1])
+msgs,sigs,pubs = load_csv(filename)
 
 msgn, rn, sn = [msgs[-1], sigs[-1][0], sigs[-1][1]]
 rnsn_inv = rn * modular_inv(sn, order)
 mnsn_inv = msgn * modular_inv(sn, order)
-
-def inverse_mult(a,b,p):
-  y =  (a * pow(b,p-2,p))  #(pow(a, b) modulo p) where p should be a prime number
-  return y
 
 def make_matrix(msgs,sigs,pubs):
   m = len(msgs)
