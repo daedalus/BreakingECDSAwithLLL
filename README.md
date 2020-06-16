@@ -1,6 +1,12 @@
 # BreakingECDSAwithLLL
 Breaking ECDSA (not so broken) with LLL
 
+Based on preious work
+  ```
+https://blog.trailofbits.com/2020/06/11/ecdsa-handle-with-care/
+https://www.youtube.com/watch?v=6ssTlSSIJQE
+  ```
+
 First install dependencies:
   ```
   sudo apt-get install sagemath python3-ecdsa
