@@ -1,13 +1,15 @@
 import ecdsa
 import random
 
-bits=176
-n=6 
+secret = int(sys.argv[1],16)
+bits = int(sys.argv[2])
+n = int(sys.argv[3])
+
 
 gen = ecdsa.SECP256k1.generator
 order = gen.order()
 #secret = random.randrange(1,order)
-secret = int("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",16)
+
 
 pub_key = ecdsa.ecdsa.Public_key(gen, gen * secret)
 priv_key = ecdsa.ecdsa.Private_key(pub_key, secret)
