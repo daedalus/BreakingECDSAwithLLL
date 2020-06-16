@@ -1,8 +1,9 @@
 # BreakingECDSAwithLLL
 Breaking ECDSA (not so broken) with LLL
 
-The main idea behing this attack is the theorem of the great numbers, if you have a crypto funcion and lots of samples (signatures) generated with a private key, then they will tend to converge to a single point which happens to be the private key, this is equal to solving the hidden number problem.
+The main idea behing this attack is the theorem of the great numbers, if you have a crypto funcion and lots of samples (signatures) generated with a private key having a bias in the nonce generation, then they will tend to converge to a single point which happens to be the private key, this is equal to solving the hidden number problem.
 And for solving it we employ Lorenz lenstra lovaz lattice reduction.
+The main counter measure against this kind of attack is using deterministic signatures like Z=H(h||d), where Z is the digest, H is a crpyo-secure hash funcion, h the nonce, and d our private key. This is needed in order to have a even distributed, random looking nonce.
 
 Heavily based on previous work
   ```
