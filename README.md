@@ -19,9 +19,11 @@ First install dependencies:
 
 Then run:
   ```
+  # (Victim) 
   # This will generate 6 weak signatures with a known key, args:(privkey,bits,nonces)
   python3 weak_signature_generator.py e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 176 6 > nonces.csv
   
+  # (Attacker) 
   # Will find the private key if LLL converges, args:(bits,nonces)
   python3 crack_weak_ECDSA_nonces_with_LLL.py nonces.csv 176 6 | grep -e e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
   ```
