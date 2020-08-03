@@ -1,5 +1,6 @@
 import ecdsa
 import random
+import sys
 
 secret = int(sys.argv[1],16)
 bits = int(sys.argv[2])
