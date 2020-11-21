@@ -1,3 +1,9 @@
+![lint_python](https://github.com/daedalus/BreakingECDSAwithLLL/workflows/lint_python/badge.svg)
+[![GitHub issues](https://img.shields.io/github/issues/daedalus/BreakingECDSAwithLLL.svg)](https://github.com/daedalus/BreakingECDSAwithLLL/issues)
+[![GitHub forks](https://img.shields.io/github/forks/daedalus/BreakingECDSAwithLLL.svg)](https://github.com/daedalus/BreakingECDSAwithLLL/network)
+[![GitHub stars](https://img.shields.io/github/stars/daedalus/BreakingECDSAwithLLL.svg)](https://github.com/daedalus/BreakingECDSAwithLLL/stargazers)
+
+
 # BreakingECDSAwithLLL
 Breaking ECDSA (not so broken) with LLL
 
