@@ -100,7 +100,7 @@ try_red_matrix(new_matrix)
 def display_keys(keys):
   for key in keys:
     sys.stdout.write("%064x\n" % key)
-    sys.stderr.write("%064x\n" % key)
+    #sys.stderr.write("%064x\n" % key)
   sys.stdout.flush()
   sys.stderr.flush()
 
