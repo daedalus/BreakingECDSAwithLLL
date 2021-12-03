@@ -14,6 +14,7 @@ order = int(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141)
 filename=sys.argv[1]
 B = int(sys.argv[2])
 limit = int(sys.argv[3])
+run_mode = "LLL"
 
 import gmpy2
 def modular_inv(a,b):
@@ -92,10 +93,12 @@ def try_red_matrix(m):
       sys.stderr.write(str(e)+"\n")
       pass
  
-new_matrix = matrix.LLL(early_red=True, use_siegel=True)
-try_red_matrix(new_matrix)
-#new_matrix = matrix.BKZ(early_red=True, use_siegel=True)
-#try_red_matrix(new_matrix)
+if run_mode == "LLL":
+    new_matrix = matrix.LLL(early_red=True, use_siegel=True)
+    try_red_matrix(new_matrix)
+else:
+    new_matrix = matrix.BKZ(early_red=True, use_siegel=True)
+    try_red_matrix(new_matrix)
 
 def display_keys(keys):
   for key in keys:
