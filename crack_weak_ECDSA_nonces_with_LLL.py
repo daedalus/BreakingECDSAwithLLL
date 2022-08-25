@@ -7,18 +7,16 @@
 import sys
 #import ecdsa
 import random
-#from sympy import mod_inverse
 from sage.all_cmdline import *   
-
-order = int(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141)
-filename=sys.argv[1]
-B = int(sys.argv[2])
-limit = int(sys.argv[3])
-run_mode = "LLL"
-
 import gmpy2
+
+# order is from secp256k1 curve it can be used any other.
+order = int(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141)
+
+
 def modular_inv(a,b):
   return int(gmpy2.invert(a,b))
+
 
 def load_csv(filename):
   msgs = []
@@ -37,11 +35,6 @@ def load_csv(filename):
       n+=1
   return msgs,sigs,pubs
 
-msgs,sigs,pubs = load_csv(filename)
-
-msgn, rn, sn = [msgs[-1], sigs[-1][0], sigs[-1][1]]
-rnsn_inv = rn * modular_inv(sn, order)
-mnsn_inv = msgn * modular_inv(sn, order)
 
 def make_matrix(msgs,sigs,pubs):
   m = len(msgs)
@@ -52,17 +45,12 @@ def make_matrix(msgs,sigs,pubs):
     #matrix.append([0] * i + [order] + [0] * (m-i+1))
     matrix[i,i] = order
 
-  #print(matrix)
-
   for i in range(0,m):
     x0=(sigs[i][0] * modular_inv(sigs[i][1], order)) - rnsn_inv
     x1=(msgs[i] * modular_inv(sigs[i][1], order)) - mnsn_inv
     #print(m,i,x0,x1)
     matrix[m+0,i] = x0
     matrix[m+1,i] = x1
-
-  #print("m",m)
-  #print("i",i)
  
   matrix[m+0,i+1] = (int(2**B) / order)
   matrix[m+0,i+2] = 0
@@ -71,12 +59,9 @@ def make_matrix(msgs,sigs,pubs):
 
   return matrix
 
-matrix = make_matrix(msgs,sigs,pubs)
 
-#sys.stderr.write(str(matrix)+"\n")
-
-keys=[]
-def try_red_matrix(m):
+def privkeys_from_reduced_matrix(m):
+  keys=[]
   for row in m:
     potential_nonce_diff = row[0]
     #print (potential_nonce_diff)
@@ -92,13 +77,8 @@ def try_red_matrix(m):
     except Exception as e:
       sys.stderr.write(str(e)+"\n")
       pass
- 
-if run_mode == "LLL":
-    new_matrix = matrix.LLL(early_red=True, use_siegel=True)
-    try_red_matrix(new_matrix)
-else:
-    new_matrix = matrix.BKZ(early_red=True, use_siegel=True)
-    try_red_matrix(new_matrix)
+  return keys
+
 
 def display_keys(keys):
   for key in keys:
@@ -107,4 +87,29 @@ def display_keys(keys):
   sys.stdout.flush()
   sys.stderr.flush()
 
-display_keys(keys)
+
+def main():
+  filename = sys.argv[1]
+  B = int(sys.argv[2])
+  limit = int(sys.argv[3])
+  run_mode = "LLL"
+
+  msgs,sigs,pubs = load_csv(filename)
+  msgn, rn, sn = [msgs[-1], sigs[-1][0], sigs[-1][1]]
+  rnsn_inv = rn * modular_inv(sn, order)
+  mnsn_inv = msgn * modular_inv(sn, order)
+  
+  matrix = make_matrix(msgs,sigs,pubs)
+
+  if run_mode == "LLL":
+    new_matrix = matrix.LLL(early_red=True, use_siegel=True)
+    keys = privkeys_from_reduced_matrix(new_matrix)
+  else:
+    new_matrix = matrix.BKZ(early_red=True, use_siegel=True)
+    keys = privkeys_from_reduced_matrix(new_matrix)
+
+  display_keys(keys)
+  
+if __name__ == "__main__":
+  main()
+
