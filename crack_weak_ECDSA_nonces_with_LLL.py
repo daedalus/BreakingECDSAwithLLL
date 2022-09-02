@@ -18,14 +18,16 @@ def modular_inv(a,b):
   return int(gmpy2.invert(a,b))
 
 
-def load_csv(filename):
+def load_csv(filename, limit = None):
   msgs = []
   sigs = []
   pubs = []
   fp = open(filename)
   n=0
+  if limit == None:
+    limit = -1
   for line in fp:
-    if n < limit:
+    if (limit == -1) or (n < limit)) :
       l = line.rstrip().split(",")
       #sys.stderr.write(str(l)+"\n")
       tx,R,S,Z,pub = l
@@ -94,7 +96,7 @@ def main():
   limit = int(sys.argv[3])
   run_mode = "LLL"
 
-  msgs,sigs,pubs = load_csv(filename)
+  msgs,sigs,pubs = load_csv(filename, limit = limit)
   msgn, rn, sn = [msgs[-1], sigs[-1][0], sigs[-1][1]]
   rnsn_inv = rn * modular_inv(sn, order)
   mnsn_inv = msgn * modular_inv(sn, order)
