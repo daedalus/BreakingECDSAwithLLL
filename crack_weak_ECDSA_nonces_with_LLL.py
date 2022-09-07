@@ -43,6 +43,10 @@ def make_matrix(msgs,sigs,pubs):
   sys.stderr.write("Using: %d sigs...\n" % m)
   matrix = Matrix(QQ,m+2, m+2)
 
+  msgn, rn, sn = [msgs[-1], sigs[-1][0], sigs[-1][1]]
+  rnsn_inv = rn * modular_inv(sn, order)
+  mnsn_inv = msgn * modular_inv(sn, order)
+
   for i in range(0,m):
     #matrix.append([0] * i + [order] + [0] * (m-i+1))
     matrix[i,i] = order
@@ -97,9 +101,6 @@ def main():
   run_mode = "LLL"
 
   msgs,sigs,pubs = load_csv(filename, limit = limit)
-  msgn, rn, sn = [msgs[-1], sigs[-1][0], sigs[-1][1]]
-  rnsn_inv = rn * modular_inv(sn, order)
-  mnsn_inv = msgn * modular_inv(sn, order)
   
   matrix = make_matrix(msgs,sigs,pubs)
 
