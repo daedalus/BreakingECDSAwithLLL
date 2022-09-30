@@ -15,14 +15,14 @@ order = gen.order()
 pub_key = ecdsa.ecdsa.Public_key(gen, gen * secret)
 priv_key = ecdsa.ecdsa.Private_key(pub_key, secret)
 
+fixed_bits = random.randrange(2**bits, order)
+
 if mode == 'MSB':
     # generate n most significant bits, nonce must be less than order
-    yubikey_fixed_prefix = random.randrange(2**bits, order)
-    nonces = [yubikey_fixed_prefix + random.randrange(1, 2**bits) for i in range(n)]
+    nonces = [fixed_bits + random.randrange(1, 2 ** bits) for i in range(n)]
 else:
     # generate n least significant bits, nonce must be less than order
-    yubikey_fixed_sufix = random.randrange(1, 2**bits)
-    nonces = [random.randrange(2**bits, order) + yubikey_fixed_sufix for i in range(n)]
+    nonces = [random.randrange(2 ** bits, order) + fixed_bits for i in range(n)]
 
 msgs = [random.randrange(1, order) for i in range(n)]
 sigs = [priv_key.sign(msgs[i],nonces[i]) for i in range(n)]
