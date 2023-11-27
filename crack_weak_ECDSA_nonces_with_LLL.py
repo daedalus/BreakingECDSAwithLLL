@@ -7,11 +7,11 @@
 import sys
 #import ecdsa
 import random
-from sage.all_cmdline import *   
+from sage.all_cmdline import *
 import gmpy2
 
 # order is from secp256k1 curve it can be used any other.
-order = int(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141)
+order = 115792089237316195423570985008687907852837564279074904382605163141518161494337
 
 
 def modular_inv(a,b):
@@ -24,7 +24,7 @@ def load_csv(filename, limit = None):
   pubs = []
   fp = open(filename)
   n=0
-  if limit == None:
+  if limit is None:
     limit = -1
   for line in fp:
     if (limit == -1) or (n < limit):
@@ -76,7 +76,6 @@ def privkeys_from_reduced_matrix(msgs, sigs, pubs, matrix):
         keys.append(key)
     except Exception as e:
       sys.stderr.write(str(e)+"\n")
-      pass
   return keys
 
 
@@ -98,11 +97,9 @@ def main():
 
   if run_mode == "LLL":
     new_matrix = matrix.LLL(early_red=True, use_siegel=True)
-    keys = privkeys_from_reduced_matrix(msgs, sigs, pubs, new_matrix)
   else:
     new_matrix = matrix.BKZ(early_red=True, use_siegel=True)
-    keys = privkeys_from_reduced_matrix(msgs, sigs, pubs, new_matrix)
-
+  keys = privkeys_from_reduced_matrix(msgs, sigs, pubs, new_matrix)
   display_keys(keys)
   
 if __name__ == "__main__":
