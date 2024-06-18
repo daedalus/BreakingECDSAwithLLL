@@ -4,6 +4,7 @@
 [![GitHub stars](https://img.shields.io/github/stars/daedalus/BreakingECDSAwithLLL.svg)](https://github.com/daedalus/BreakingECDSAwithLLL/stargazers)
 
 
+
 # BreakingECDSAwithLLL
 Breaking ECDSA (not so broken) with LLL
 
@@ -33,3 +34,5 @@ Then run:
   # Will find the private key if LLL converges, args:(bits,nonces)
   python3 crack_weak_ECDSA_nonces_with_LLL.py nonces.csv 176 6 | grep -e e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
   ```
+
+This PoC was referenced in [CVE-2024-31497](https://nvd.nist.gov/vuln/detail/CVE-2024-31497) on 4/16/2024.
