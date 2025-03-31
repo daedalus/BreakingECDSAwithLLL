@@ -54,8 +54,7 @@ def load_csv(filename, limit=None, mmap_flag=False):
 def make_matrix(msgs, sigs, pubs, B, order, matrix_type="dense"):
     """Construct matrix, either sparse or dense, based on the matrix_type parameter."""
     m = len(msgs)
-    m1 = m + 1
-    M2 = m + 2
+    m1, m2 = m + 1, m + 2
     sys.stderr.write(f"Using: {m} sigs...\n")
     
     if matrix_type == "sparse":
@@ -64,8 +63,9 @@ def make_matrix(msgs, sigs, pubs, B, order, matrix_type="dense"):
         matrix = Matrix(QQ, m2, m2)
 
     msgn, rn, sn = msgs[-1], sigs[-1][0], sigs[-1][1]
-    rnsn_inv = rn * modular_inv(sn, order)
-    mnsn_inv = msgn * modular_inv(sn, order)
+    mi_sn_order = modular_inv(sn, order)
+    rnsn_inv = rn * mi_sn_order
+    mnsn_inv = msgn * mi_sn_order
 
     # Fill diagonal with the order
     for i in range(m):
@@ -73,8 +73,9 @@ def make_matrix(msgs, sigs, pubs, B, order, matrix_type="dense"):
 
     # Set values for the matrix (only first m columns)
     for i in range(m):
-        matrix[m, i] = (sigs[i][0] * modular_inv(sigs[i][1], order)) - rnsn_inv
-        matrix[m1, i] = (msgs[i] * modular_inv(sigs[i][1], order)) - mnsn_inv
+        mi_sigi_order = modular_inv(sigs[i][1], order)
+        matrix[m, i] = (sigs[i][0] * mi_sigi_order) - rnsn_inv
+        matrix[m1, i] = (msgs[i] * mi_sigi_order) - mnsn_inv
 
     # Populate last two columns with specific values
     B2 = 1 << B
