@@ -54,12 +54,14 @@ def load_csv(filename, limit=None, mmap_flag=False):
 def make_matrix(msgs, sigs, pubs, B, order, matrix_type="dense"):
     """Construct matrix, either sparse or dense, based on the matrix_type parameter."""
     m = len(msgs)
+    m1 = m + 1
+    M2 = m + 2
     sys.stderr.write(f"Using: {m} sigs...\n")
     
     if matrix_type == "sparse":
-        matrix = SparseMatrix(QQ, m + 2, m + 2)
+        matrix = SparseMatrix(QQ, m2, m2)
     else:
-        matrix = Matrix(QQ, m + 2, m + 2)
+        matrix = Matrix(QQ, m2, m2)
 
     msgn, rn, sn = msgs[-1], sigs[-1][0], sigs[-1][1]
     rnsn_inv = rn * modular_inv(sn, order)
@@ -72,11 +74,12 @@ def make_matrix(msgs, sigs, pubs, B, order, matrix_type="dense"):
     # Set values for the matrix (only first m columns)
     for i in range(m):
         matrix[m, i] = (sigs[i][0] * modular_inv(sigs[i][1], order)) - rnsn_inv
-        matrix[m + 1, i] = (msgs[i] * modular_inv(sigs[i][1], order)) - mnsn_inv
+        matrix[m1, i] = (msgs[i] * modular_inv(sigs[i][1], order)) - mnsn_inv
 
     # Populate last two columns with specific values
-    matrix[m, m + 1] = int(2**B) / order
-    matrix[m + 1, m + 1] = 2**B
+    B2 = 1 << B
+    matrix[m, m1] = B2 / order
+    matrix[m1, m1] = B2
 
     return matrix
 
