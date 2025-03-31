@@ -67,12 +67,10 @@ def make_matrix(msgs, sigs, pubs, B, order, matrix_type="dense"):
     rnsn_inv = rn * mi_sn_order
     mnsn_inv = msgn * mi_sn_order
 
-    # Fill diagonal with the order
     for i in range(m):
+        # Fill diagonal with the order
         matrix[i, i] = order
-
-    # Set values for the matrix (only first m columns)
-    for i in range(m):
+        # Set values for the matrix (only first m columns)
         mi_sigi_order = modular_inv(sigs[i][1], order)
         matrix[m, i] = (sigs[i][0] * mi_sigi_order) - rnsn_inv
         matrix[m1, i] = (msgs[i] * mi_sigi_order) - mnsn_inv
