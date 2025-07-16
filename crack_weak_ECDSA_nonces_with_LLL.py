@@ -83,35 +83,60 @@ def make_matrix(msgs, sigs, pubs, B, order, matrix_type="dense"):
     return matrix
 
 
-def privkeys_from_reduced_matrix(msgs, sigs, pubs, matrix, order):
-    keys = []
+def privkeys_from_reduced_matrix(msgs, sigs, pubs, matrix, order, max_rows=20):
+    """
+    Extract private keys by:
+      • Precomputing (a,b,cd,ab_list) for all msgs,
+      • Sorting rows by ||row|| ascending,
+      • Testing only the top `max_rows` rows.
+    """
+    from math import sqrt
+    keys = set()
+    m = len(msgs)    
     msgn, rn, sn = msgs[-1], sigs[-1][0], sigs[-1][1]
 
-    for i in range(len(msgs)):
+    # 1) Precompute per-i constants
+    params = []
+    for i in range(m):
         a = rn * sigs[i][1]
         b = sn * sigs[i][0]
         c = sn * msgs[i]
         d = msgn * sigs[i][1]
-        cd = c - d
+        cd = (c - d) % order
+        if a == b: ab_list = None
+        else: ab_list = [ (a - b) % order, (b - a) % order ]
+        params.append((b, cd, ab_list))
 
-        if a == b:
-            for row in matrix:
-                for j in range(len(msgs)):
-                    potential_nonce_diff = row[j]
-                    key = (cd - (b * potential_nonce_diff)) % order
-                    if key not in keys:
-                        keys.append(key)
-        else:
-            for row in matrix:
-                for j in range(len(msgs)):
-                    potential_nonce_diff = row[j]
-                    potential_priv_key = cd - (b * potential_nonce_diff)
-                    for ab in [a - b, b - a]:
+    # 2) Compute row norms once
+    row_norms = []
+    for idx, row in enumerate(matrix):
+        # only consider first m components for the norm
+        norm2 = sum((float(row[j])**2 for j in range(m)))
+        row_norms.append((norm2, idx))
+    row_norms.sort()
+
+    # 3) Only test top max_rows shortest rows
+    for _, ridx in row_norms[:max_rows]:
+        row = matrix[ridx]
+        # extract all potential k-diffs at once
+        kdiffs = [int(row[j]) for j in range(m)]
+        # for each message i, attempt recovery
+        for i, (b, cd, ab_list) in enumerate(params):
+            base = (cd - b * kdiffs[i])
+            if ab_list is None:
+                # special case a==b -> key = base
+                if 0 < base < order: keys.add(base)
+                else: keys.add(base % order)
+            else:
+                for ab in ab_list:
+                    # modular_inv only if ab != 0
+                    if ab:
                         inv = modular_inv(ab, order)
-                        key = (potential_priv_key * inv) % order
-                        if key not in keys:
-                            keys.append(key)
-        return keys
+                        key = (base * inv)
+                        if 0 < key < order: keys.add(key)
+                        else: keys.add(key % order)
+    return list(keys)
+
 
 
 def display_keys(keys):
