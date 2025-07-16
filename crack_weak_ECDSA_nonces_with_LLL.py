@@ -88,22 +88,32 @@ def privkeys_from_reduced_matrix(msgs, sigs, pubs, matrix, order):
     keys = []
     msgn, rn, sn = msgs[-1], sigs[-1][0], sigs[-1][1]
 
-    for row in matrix:
-        potential_nonce_diff = row[0]
-        try:
-            potential_priv_key = (
-                (sn * msgs[0])
-                - (sigs[0][1] * msgn)
-                - (sigs[0][1] * sn * potential_nonce_diff)
-            )
-            potential_priv_key *= modular_inv(
-                (rn * sigs[0][1]) - (sigs[0][0] * sn), order
-            )
-            key = potential_priv_key % order
-            if key not in keys:
-                keys.append(key)
-        except Exception as e:
-            sys.stderr.write(f"Error extracting key: {str(e)}\n")
+
+    a = rn * sigs[0][1]
+    b = sn * sigs[0][0] 
+    c = sn * msgs[0]
+    d = msgn * sigs[0][1]
+    cd = c - d
+
+    if a!=b:
+        for row in matrix:
+            potential_nonce_diff = row[0]
+            for ab in [a-b, b-a]:
+                potential_priv_key = (cd - (b * potential_nonce_diff))
+                potential_priv_key *= modular_inv(ab, order)
+                key = potential_priv_key % order
+                if key not in keys:
+                    keys.append(key)
+    else:
+        for row in matrix:
+            potential_nonce_diff = row[0]
+            for ab in [a-b, b-a]:
+                potential_priv_key = (cd - (b * potential_nonce_diff))
+                key = potential_priv_key % order
+                if key not in keys:
+                    keys.append(key)
+
+
     return keys
 
 
