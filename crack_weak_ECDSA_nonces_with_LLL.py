@@ -84,32 +84,34 @@ def make_matrix(msgs, sigs, pubs, B, order, matrix_type="dense"):
 
 
 def privkeys_from_reduced_matrix(msgs, sigs, pubs, matrix, order):
-    """Extract private keys from reduced matrix."""
     keys = []
     msgn, rn, sn = msgs[-1], sigs[-1][0], sigs[-1][1]
 
+    for i in range(len(msgs)):
+        a = rn * sigs[i][1]
+        b = sn * sigs[i][0]
+        c = sn * msgs[i]
+        d = msgn * sigs[i][1]
+        cd = c - d
 
-    a = rn * sigs[0][1]
-    b = sn * sigs[0][0] 
-    c = sn * msgs[0]
-    d = msgn * sigs[0][1]
-    cd = c - d
-
-    if a == b:
-        for row in matrix:
-            potential_nonce_diff = row[0]
-            key = (cd - (b * potential_nonce_diff)) % order
-            if key not in keys:
-                keys.append(key)
-    else:
-        for row in matrix:
-            potential_nonce_diff = row[0]
-            potential_priv_key = (cd - (b * potential_nonce_diff))
-            for ab in [a-b, b-a]:
-                key = (potential_priv_key * modular_inv(ab, order)) % order
-                if key not in keys:
-                    keys.append(key)    
-    return keys
+        if a == b:
+            for row in matrix:
+                for j in range(len(msgs)):
+                    potential_nonce_diff = row[j]
+                    key = (cd - (b * potential_nonce_diff)) % order
+                    if key not in keys:
+                        keys.append(key)
+        else:
+            for row in matrix:
+                for j in range(len(msgs)):
+                    potential_nonce_diff = row[j]
+                    potential_priv_key = cd - (b * potential_nonce_diff)
+                    for ab in [a - b, b - a]:
+                        inv = modular_inv(ab, order)
+                        key = (potential_priv_key * inv) % order
+                        if key not in keys:
+                            keys.append(key)
+        return keys
 
 
 def display_keys(keys):
