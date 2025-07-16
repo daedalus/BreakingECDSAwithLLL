@@ -95,25 +95,20 @@ def privkeys_from_reduced_matrix(msgs, sigs, pubs, matrix, order):
     d = msgn * sigs[0][1]
     cd = c - d
 
-    if a!=b:
+    if a == b:
         for row in matrix:
             potential_nonce_diff = row[0]
-            for ab in [a-b, b-a]:
-                potential_priv_key = (cd - (b * potential_nonce_diff))
-                potential_priv_key *= modular_inv(ab, order)
-                key = potential_priv_key % order
-                if key not in keys:
-                    keys.append(key)
+            key = (cd - (b * potential_nonce_diff)) % order
+            if key not in keys:
+                keys.append(key)
     else:
         for row in matrix:
             potential_nonce_diff = row[0]
+            potential_priv_key = (cd - (b * potential_nonce_diff))
             for ab in [a-b, b-a]:
-                potential_priv_key = (cd - (b * potential_nonce_diff))
-                key = potential_priv_key % order
+                key = (potential_priv_key * modular_inv(ab, order)) % order
                 if key not in keys:
-                    keys.append(key)
-
-
+                    keys.append(key)    
     return keys
 
 
