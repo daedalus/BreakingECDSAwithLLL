@@ -76,10 +76,8 @@ def make_matrix_fpylll(msgs, sigs, B, order):
 
 
 def reduce_matrix(matrix, algorithm="LLL"):
-    if algorithm == "LLL":
-        LLL.reduction(matrix)
-    else:
-        LLL.reduction(matrix)
+    LLL.reduction(matrix)
+    if algorithm == "BKZ":
         bkz = BKZ(matrix)
         param = BKZ.Param(block_size=20)
         bkz(param)
