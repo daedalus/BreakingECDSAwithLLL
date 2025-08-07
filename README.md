@@ -21,8 +21,14 @@ https://www.youtube.com/watch?v=6ssTlSSIJQE
 
 First install dependencies:
   ```
-  sudo apt-get install sagemath python3-ecdsa
+  sudo apt install python3-fpylll python3-ecdsa
   ```
+Or:
+  ```
+  pip install fpylll ecdsa
+  ```
+  
+  
 
 Then run:
   ```
