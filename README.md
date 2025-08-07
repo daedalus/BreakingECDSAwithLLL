@@ -25,6 +25,9 @@ First install dependencies:
   ```
 Or:
   ```
+  sudo apt install virtualenv
+  virtualenv venv
+  source venv/bin/activate
   pip install fpylll ecdsa
   ```
   
