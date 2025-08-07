@@ -8,6 +8,8 @@ import sys
 import argparse
 import mmap
 import gmpy2
+import binascii
+from ecdsa import SigningKey, SECP256k1
 from fpylll import IntegerMatrix, LLL, BKZ
 
 # Default order from secp256k1 curve
@@ -127,12 +129,36 @@ def privkeys_from_reduced_matrix(msgs, sigs, pubs, matrix, order, max_rows=20):
     return list(keys)
 
 
-def display_keys(keys):
-    """Display recovered private keys."""
-    sys.stdout.write("\n".join([f"{key:064x}" for key in keys]) + "\n")
-    sys.stdout.flush()
-    sys.stderr.flush()
+def verify_key(privkey, pubkey_hex):
+    """
+    Verifies whether the private key matches the given compressed or uncompressed pubkey.
+    """
+    sk = SigningKey.from_secret_exponent(privkey, curve=SECP256k1)
+    vk = sk.get_verifying_key()
 
+    x = vk.pubkey.point.x()
+    y = vk.pubkey.point.y()
+    x_bytes = x.to_bytes(32, byteorder='big')
+
+    # Compressed format
+    prefix = b'\x02' if y % 2 == 0 else b'\x03'
+    compressed_pub = prefix + x_bytes
+
+    # Uncompressed format
+    uncompressed_pub = b'\x04' + vk.to_string()
+
+    pubkey_hex = pubkey_hex.lower()
+    return (
+        pubkey_hex == compressed_pub.hex()
+        or pubkey_hex == uncompressed_pub.hex()
+    )
+
+
+def display_keys(keys, ref_pubkey):
+    """Display and verify recovered private keys."""
+    for key in keys:
+        status = "✔️" if verify_key(key, ref_pubkey) else "❌"
+        print(f"{key:064x} {status}")
 
 def main():
     parser = argparse.ArgumentParser(description="ECDSA private key recovery using lattice reduction (fpylll)")
