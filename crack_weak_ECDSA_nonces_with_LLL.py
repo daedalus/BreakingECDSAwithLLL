@@ -129,23 +129,22 @@ def point_bytes_from_vk(vk):
 
 
 def _compute_row_norms(matrix, m, max_rows):
-    """Compute norms for matrix rows, returning only the smallest."""
-    # Use heapq for efficient partial sorting - only keep top max_rows
+    """Compute norms for matrix rows, returning only the smallest.
+
+    Uses heapq.nsmallest for efficient partial sorting when only a subset
+    of rows is needed. Falls back to full sort when all rows are needed.
+    """
+    norms_generator = (
+        (sum(float(matrix[ridx, j]) ** 2 for j in range(m)), ridx)
+        for ridx in range(matrix.nrows)
+    )
+
     if matrix.nrows <= max_rows:
-        # For small matrices, full sort is fine
-        row_norms = []
-        for ridx in range(matrix.nrows):
-            norm2 = sum(float(matrix[ridx, j]) ** 2 for j in range(m))
-            row_norms.append((norm2, ridx))
-        row_norms.sort()
-        return row_norms
+        # Need all rows - full sort is equivalent
+        return sorted(norms_generator)
     else:
-        # For large matrices, use heapq.nsmallest for better performance
-        norms = (
-            (sum(float(matrix[ridx, j]) ** 2 for j in range(m)), ridx)
-            for ridx in range(matrix.nrows)
-        )
-        return heapq.nsmallest(max_rows, norms)
+        # Need only top max_rows - heapq is more efficient
+        return heapq.nsmallest(max_rows, norms_generator)
 
 
 def _extract_candidate_from_row(row_val, b, cd, ab_list, order):
@@ -215,26 +214,44 @@ def _try_derive_pubkey(priv):
         return None, None
 
 
-def _verify_candidates(keys, pubset, show_all):
-    """Verify candidate private keys against known public keys."""
+def _verify_candidates(keys, pubset, find_all=False):
+    """Verify candidate private keys against known public keys.
+
+    Args:
+        keys: List of candidate private keys to verify
+        pubset: Set of known public keys (hex strings)
+        find_all: If True, find all matching keys. If False, stop after
+                  first match (optimization for typical use case)
+
+    Returns:
+        List of tuples (priv, uncompressed_pub, compressed_pub)
+    """
     verified = []
     for priv in keys:
         uncmp, cmpd = _try_derive_pubkey(priv)
         if uncmp and (uncmp in pubset or cmpd in pubset):
             verified.append((priv, uncmp, cmpd))
-            if not show_all:
-                break  # Early exit after first match
+            if not find_all:
+                break  # Early exit optimization after first match
     return verified
 
 
 def display_keys(keys, pubkeys, show_all=False):
+    """Display verified private keys or all candidates.
+
+    Args:
+        keys: List of candidate private keys
+        pubkeys: List of known public keys for verification
+        show_all: If True, show all candidates when none verify. Also finds
+                  all matching keys instead of stopping at first match.
+    """
     pubset = set(normalize_pubhex(p) for p in pubkeys if p)
     if not pubset:
         sys.stderr.write("[!] Warning: no pubkeys given for verification.\n")
 
     verified = []
     if pubset:
-        verified = _verify_candidates(keys, pubset, show_all)
+        verified = _verify_candidates(keys, pubset, find_all=show_all)
 
     if not verified:
         if show_all:
