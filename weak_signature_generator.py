@@ -30,8 +30,7 @@ sigs = [priv_key.sign(msgs[i], nonces[i]) for i in range(n)]
 
 
 def inttohex(i):
-    tmpstr = hex(i)
-    return tmpstr.replace("0x", "").replace("L", "").zfill(64)
+    return format(i, '064x')
 
 
 for i in range(0, len(msgs)):
