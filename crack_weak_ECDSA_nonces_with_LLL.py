@@ -129,7 +129,16 @@ def point_bytes_from_vk(vk):
 
 
 def _compute_row_norms(matrix, m, max_rows):
-    """Compute norms for matrix rows, returning only the smallest.
+    """Compute norms for matrix rows, returning up to max_rows smallest.
+
+    Args:
+        matrix: The reduced lattice matrix
+        m: Number of columns to include in norm computation
+        max_rows: Maximum number of rows to return
+
+    Returns:
+        List of (norm, row_index) tuples, sorted by norm (smallest first).
+        Returns min(matrix.nrows, max_rows) items.
 
     Uses heapq.nsmallest for efficient partial sorting when only a subset
     of rows is needed. Falls back to full sort when all rows are needed.
@@ -140,10 +149,10 @@ def _compute_row_norms(matrix, m, max_rows):
     )
 
     if matrix.nrows <= max_rows:
-        # Need all rows - full sort is equivalent
+        # Need all rows (fewer than max_rows exist) - full sort is fine
         return sorted(norms_generator)
     else:
-        # Need only top max_rows - heapq is more efficient
+        # Need only top max_rows out of many - heapq is more efficient
         return heapq.nsmallest(max_rows, norms_generator)
 
 
