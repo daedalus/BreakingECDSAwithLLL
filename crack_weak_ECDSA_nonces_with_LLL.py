@@ -5,6 +5,7 @@
 import sys
 import argparse
 import mmap
+import heapq
 import gmpy2
 from fpylll import IntegerMatrix, LLL, BKZ
 from ecdsa import SigningKey, SECP256k1
@@ -127,14 +128,24 @@ def point_bytes_from_vk(vk):
     return uncompressed.lower(), compressed.lower()
 
 
-def _compute_row_norms(matrix, m):
-    """Compute norms for matrix rows based on first m columns."""
-    row_norms = []
-    for ridx in range(matrix.nrows):
-        norm2 = sum(float(matrix[ridx, j]) ** 2 for j in range(m))
-        row_norms.append((norm2, ridx))
-    row_norms.sort()
-    return row_norms
+def _compute_row_norms(matrix, m, max_rows):
+    """Compute norms for matrix rows, returning only the smallest."""
+    # Use heapq for efficient partial sorting - only keep top max_rows
+    if matrix.nrows <= max_rows:
+        # For small matrices, full sort is fine
+        row_norms = []
+        for ridx in range(matrix.nrows):
+            norm2 = sum(float(matrix[ridx, j]) ** 2 for j in range(m))
+            row_norms.append((norm2, ridx))
+        row_norms.sort()
+        return row_norms
+    else:
+        # For large matrices, use heapq.nsmallest for better performance
+        norms = (
+            (sum(float(matrix[ridx, j]) ** 2 for j in range(m)), ridx)
+            for ridx in range(matrix.nrows)
+        )
+        return heapq.nsmallest(max_rows, norms)
 
 
 def _extract_candidate_from_row(row_val, b, cd, ab_list, order):
@@ -178,10 +189,10 @@ def privkeys_from_reduced_matrix(
         params.append((b, cd, ab_list))
 
     # Get sorted row indices by norm
-    row_norms = _compute_row_norms(matrix, m)
+    row_norms = _compute_row_norms(matrix, m, max_rows)
 
     # Extract candidates from best rows
-    for _, ridx in row_norms[:max_rows]:
+    for _, ridx in row_norms:
         if len(keys) >= max_candidates:
             break
         row = [int(matrix[ridx, j]) for j in range(m)]
