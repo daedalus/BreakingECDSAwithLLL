@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "breaking-ecdsa-with-lll"
+name = "ecdsa-break"
 version = "0.1.0.1"
 description = "Recover ECDSA private keys from biased-nonce signatures via LLL/BKZ lattice reduction"
 readme = "README.md"
@@ -38,11 +38,11 @@ lint = [
     "ruff",
     "mypy",
 ]
-all = ["breaking-ecdsa-with-lll[dev,test,lint,generator]"]
+all = ["ecdsa_break[dev,test,lint,generator]"]
 
 [project.scripts]
-break-ecdsa = "breaking_ecdsa_with_lll.__main__:main"
-gen-weak-sigs = "breaking_ecdsa_with_lll.__main__:main_generator"
+ecdsa-break = "ecdsa_break.__main__:main"
+gen-weak-sigs = "ecdsa_break.__main__:main_generator"
 
 [project.urls]
 Homepage = "https://github.com/daedalus/BreakingECDSAwithLLL"
@@ -50,10 +50,10 @@ Repository = "https://github.com/daedalus/BreakingECDSAwithLLL"
 Issues = "https://github.com/daedalus/BreakingECDSAwithLLL/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/breaking_ecdsa_with_lll"]
+packages = ["src/ecdsa_break"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/breaking_ecdsa_with_lll"]
+include = ["src/ecdsa_break"]
 
 [tool.ruff]
 line-length = 88
@@ -82,11 +82,11 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --tb=short --cov=src --cov-fail-under=80"
+addopts = "-v --tb=short --cov=ecdsa_break --cov-fail-under=80"
 filterwarnings = ["ignore::DeprecationWarning"]
 
 [tool.coverage.run]
-source = ["src"]
+source = ["src/ecdsa_break"]
 branch = true
 
 [tool.coverage.report]

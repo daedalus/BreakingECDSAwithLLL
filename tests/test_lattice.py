@@ -1,4 +1,4 @@
-"""Tests for breaking_ecdsa_with_lll.lattice."""
+"""Tests for ecdsa_break.lattice."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from fractions import Fraction
 
 import pytest
 
-from breaking_ecdsa_with_lll.lattice import (
+from ecdsa_break.lattice import (
     DEFAULT_ORDER,
     _modular_inv,
     make_matrix,

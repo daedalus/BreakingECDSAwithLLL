@@ -5,15 +5,17 @@ from __future__ import annotations
 import argparse
 import sys
 
-from breaking_ecdsa_with_lll.display import display_keys
-from breaking_ecdsa_with_lll.io import load_csv
-from breaking_ecdsa_with_lll.lattice import (
+from ecdsa_break.display import display_keys
+from ecdsa_break.io import load_csv
+from ecdsa_break.lattice import (
     DEFAULT_ORDER,
     make_matrix,
     privkeys_from_reduced_matrix,
     reduce_matrix,
 )
-
+from ecdsa_break.generator import (
+    generate_weak_signatures,  # noqa: PLC0415
+)
 
 def main() -> int:
     """CLI: recover ECDSA private keys from a biased-nonce signature CSV."""
@@ -97,9 +99,7 @@ def main_generator() -> int:
     args = parser.parse_args()
     secret_int = int(args.secret, 16)
 
-    from breaking_ecdsa_with_lll.generator import (
-        generate_weak_signatures,  # noqa: PLC0415
-    )
+
 
     lines = generate_weak_signatures(secret_int, args.bits, args.n, mode=args.mode)
     sys.stdout.write("\n".join(lines) + "\n")

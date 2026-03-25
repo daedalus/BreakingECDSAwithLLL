@@ -1,10 +1,10 @@
-"""Tests for breaking_ecdsa_with_lll.generator."""
+"""Tests for ecdsa_break.generator."""
 
 from __future__ import annotations
 
 import pytest
 
-from breaking_ecdsa_with_lll.generator import generate_weak_signatures
+from ecdsa_break.generator import generate_weak_signatures
 
 # A small but valid secp256k1 private key
 SECRET = 0xE3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855

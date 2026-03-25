@@ -1,4 +1,4 @@
-"""Tests for breaking_ecdsa_with_lll.__main__ CLI entry points."""
+"""Tests for ecdsa_break.__main__ CLI entry points."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from breaking_ecdsa_with_lll.__main__ import main, main_generator
+from ecdsa_break.__main__ import main, main_generator
 
 
 class TestMainCli:

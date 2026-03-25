@@ -1,10 +1,10 @@
-"""Tests for breaking_ecdsa_with_lll.display."""
+"""Tests for ecdsa_break.display."""
 
 from __future__ import annotations
 
 import pytest
 
-from breaking_ecdsa_with_lll.display import display_keys
+from ecdsa_break.display import display_keys
 
 
 class TestDisplayKeys:

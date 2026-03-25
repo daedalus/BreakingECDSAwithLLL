@@ -7,7 +7,7 @@ import os
 
 import pytest
 
-from breaking_ecdsa_with_lll.lattice import DEFAULT_ORDER
+from ecdsa_break.lattice import DEFAULT_ORDER
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import random
 
-from breaking_ecdsa_with_lll.lattice import DEFAULT_ORDER
+from ecdsa_break.lattice import DEFAULT_ORDER
 
 
 def generate_weak_signatures(

@@ -1,10 +1,10 @@
-"""Tests for breaking_ecdsa_with_lll.io."""
+"""Tests for ecdsa_break.io."""
 
 from __future__ import annotations
 
 import pytest
 
-from breaking_ecdsa_with_lll.io import load_csv
+from ecdsa_break.io import load_csv
 
 
 class TestLoadCsv:
