@@ -9,6 +9,8 @@ import argparse
 import mmap
 from fractions import Fraction
 import olll
+from fpylll import IntegerMatrix, BKZ
+from fpylll.algorithms.bkz import BKZReduction
 
 
 # Default order from secp256k1 curve
@@ -118,11 +120,24 @@ def display_keys(keys):
     sys.stderr.flush()
 
 
-def reduce_matrix(matrix, algorithm="LLL", delta=0.75):
-    if algorithm == "BKZ":
+def reduce_matrix(matrix, do_bkz=False, delta=0.75):
+    #if algorithm == "BKZ":
+    #
+    #    sys.stderr.write("[!] BKZ not supported in olll, using LLL instead\n")
+    new_matrix =  olll.reduction(matrix, delta)
+    matrix = new_matrix
 
-        sys.stderr.write("[!] BKZ not supported in olll, using LLL instead\n")
-    return olll.reduction(matrix, delta)
+    if do_bkz:
+        par = BKZ.Param(
+            block_size=20,   # core parameter
+            max_loops=8
+        )
+        # Run BKZ
+        matrix = IntegerMatrix.from_matrix(matrix)
+        bkz = BKZReduction(matrix)
+        bkz(par)
+
+    return matrix 
 
 
 
@@ -143,6 +158,11 @@ def main():
         help="Order of the curve. Default is the secp256k1 order"
     )
     parser.add_argument(
+        "--bkz", default=False, action="store_true",
+        help="Do a BKZ final pass"
+    )
+
+    parser.add_argument(
         "--mmap", action="store_true", 
         help="Enable memory-mapping for the CSV file for faster processing"
     )
@@ -157,7 +177,7 @@ def main():
     matrix = make_matrix(msgs, sigs, pubs, args.B, args.order, matrix_type=args.matrix_type)
 
     # Perform LLL
-    new_matrix = reduce_matrix(matrix)
+    new_matrix = reduce_matrix(matrix, do_bkz=args.bkz)
 
     # Extract and display private keys
     keys = privkeys_from_reduced_matrix(msgs, sigs, pubs, new_matrix, args.order)

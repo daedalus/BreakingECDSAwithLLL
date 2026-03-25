@@ -21,7 +21,7 @@ https://www.youtube.com/watch?v=6ssTlSSIJQE
 
 First install dependencies:
   ```
-  pip install olll
+  pip install olll fpylll
   ```
   
   
