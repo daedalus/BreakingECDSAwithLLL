@@ -47,7 +47,7 @@ break-ecdsa nonces.csv 176 6 | grep e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b
 ## Python API
 
 ```python
-from breaking_ecdsa_with_lll import (
+from ecdsa_break import (
     load_csv,
     make_matrix,
     reduce_matrix,
