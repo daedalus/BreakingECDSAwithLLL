@@ -21,14 +21,7 @@ https://www.youtube.com/watch?v=6ssTlSSIJQE
 
 First install dependencies:
   ```
-  sudo apt install python3-fpylll python3-ecdsa
-  ```
-Or:
-  ```
-  sudo apt install virtualenv
-  virtualenv venv
-  source venv/bin/activate
-  pip install fpylll ecdsa
+  pip install olll
   ```
   
   
