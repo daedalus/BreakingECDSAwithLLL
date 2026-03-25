@@ -1,0 +1,100 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "breaking-ecdsa-with-lll"
+version = "0.1.0.1"
+description = "Recover ECDSA private keys from biased-nonce signatures via LLL/BKZ lattice reduction"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Dario Clavijo", email = "clavijodario@gmail.com"},
+]
+dependencies = [
+    "olll",
+    "fpylll",
+]
+
+[project.optional-dependencies]
+generator = [
+    "ecdsa",
+]
+dev = [
+    "ruff",
+    "mypy",
+    "hatch",
+]
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-mock",
+    "pytest-asyncio",
+    "hypothesis",
+    "ecdsa",
+]
+lint = [
+    "ruff",
+    "mypy",
+]
+all = ["breaking-ecdsa-with-lll[dev,test,lint,generator]"]
+
+[project.scripts]
+break-ecdsa = "breaking_ecdsa_with_lll.__main__:main"
+gen-weak-sigs = "breaking_ecdsa_with_lll.__main__:main_generator"
+
+[project.urls]
+Homepage = "https://github.com/daedalus/BreakingECDSAwithLLL"
+Repository = "https://github.com/daedalus/BreakingECDSAwithLLL"
+Issues = "https://github.com/daedalus/BreakingECDSAwithLLL/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/breaking_ecdsa_with_lll"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/breaking_ecdsa_with_lll"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "N", "C4", "ARG"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/*" = ["ANN", "ARG"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = ["olll", "fpylll", "fpylll.algorithms.bkz", "ecdsa", "ecdsa.ecdsa"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short --cov=src --cov-fail-under=80"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
