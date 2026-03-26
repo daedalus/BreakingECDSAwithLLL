@@ -2,6 +2,8 @@
 
 > Recover ECDSA private keys from biased-nonce signatures via LLL/BKZ lattice reduction.
 
+Now available as a package.
+
 ![lint_python](https://github.com/daedalus/BreakingECDSAwithLLL/workflows/lint_python/badge.svg)
 [![PyPI](https://img.shields.io/pypi/v/breaking-ecdsa-with-lll.svg)](https://pypi.org/project/breaking-ecdsa-with-lll/)
 [![Python](https://img.shields.io/pypi/pyversions/breaking-ecdsa-with-lll.svg)](https://pypi.org/project/breaking-ecdsa-with-lll/)
@@ -29,9 +31,9 @@ Referenced in [CVE-2024-31497](https://nvd.nist.gov/vuln/detail/CVE-2024-31497) 
 ## Install
 
 ```bash
-pip install breaking-ecdsa-with-lll
+pip install ecdsa-break
 # With weak-signature generator support:
-pip install "breaking-ecdsa-with-lll[generator]"
+pip install "ecdsa-break[generator]"
 ```
 
 ## Quick start
